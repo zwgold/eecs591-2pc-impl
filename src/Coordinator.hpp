@@ -1,6 +1,7 @@
 #ifndef COORDINATOR_HPP_
 #define COORDINATOR_HPP_
 
+#include <algorithm>
 #include <iostream>
 #include <semaphore>
 #include <thread>
@@ -10,7 +11,7 @@
 #include "Follower.hpp"
 
 
-class Coordinator {
+class Coordinator : public std::thread {
 private:
     static constexpr uint8_t NO_COHORTS = 2;
 
@@ -27,7 +28,6 @@ public:
     void start_vote(Follower& follower);
 
     void run();
-
 
     std::counting_semaphore<2> coor{0};
 

@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <iostream>
 #include <semaphore>
 #include <thread>
@@ -26,6 +27,21 @@ void Coordinator::ack() {
 
 void Coordinator::start_vote(Follower& follower) {
     followers.push_back(follower);
+    coor.release();
+}
+
+void Coordinator::run() {
+    // Acquire semaphore
+    coor.acquire();
+
+
+    /*for (auto follower : followers) {
+        // call function here
+    }*/
+
+    if ((long int)votes.size() == std::count_if(votes.begin(), votes.end(), [](int i) { return i == 1; })) {
+
+    }
 }
 
 /*
