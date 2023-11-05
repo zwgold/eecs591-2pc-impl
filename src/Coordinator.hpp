@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <numeric>
 #include <semaphore>
 #include <thread>
 #include <unordered_map>

@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <iostream>
+#include <numeric>
 #include <semaphore>
 #include <thread>
 #include <unordered_map>
@@ -11,7 +12,8 @@
 
 // 1 --> Yes/True, 0 --> No/False
 
-Coordinator::Coordinator() {}
+Coordinator::Coordinator() : std::thread() {
+}
 
 void Coordinator::yes() {
     votes.push_back(1);
@@ -35,12 +37,32 @@ void Coordinator::run() {
     coor.acquire();
 
 
-    /*for (auto follower : followers) {
-        // call function here
-    }*/
+    for (auto follower : followers) {
+        follower.query_to_commit();
+    }
 
-    if ((long int)votes.size() == std::count_if(votes.begin(), votes.end(), [](int i) { return i == 1; })) {
+    // If we have enough votes, we can commit
+    if ((long int)votes.size() == std::accumulate(votes.begin(), votes.end(), 0)) {
+        for (auto follower : followers) {
+            follower.commit();
+        }
+    }
 
+    else {
+        for (auto follower : followers) {
+            follower.rollback();
+        }
+    }
+
+    if ((long int)acks.size() == std::accumulate(acks.begin(), acks.end(), 0)) {
+        // logging here
+    }
+    else {
+        // logging here
+    }
+
+    for (auto follower : followers) {
+        follower.end();
     }
 }
 
