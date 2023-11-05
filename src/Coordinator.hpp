@@ -2,12 +2,18 @@
 #define COORDINATOR_HPP_
 
 #include <iostream>
+#include <semaphore>
+#include <thread>
+#include <unordered_map>
 #include <vector>
 
 #include "Follower.hpp"
 
 
 class Coordinator {
+private:
+    static constexpr uint8_t NO_COHORTS = 2;
+
 public:
 
     Coordinator();
@@ -18,11 +24,14 @@ public:
 
     void ack();
 
-    void start_vote();
+    void start_vote(Follower& follower);
 
     void run();
 
 
+    std::counting_semaphore<2> coor{0};
+
+    //std::unordered_map<
     std::vector<int> acks;
     std::vector<int> votes;
     std::vector<Follower> followers;
