@@ -1,35 +1,101 @@
 #ifndef FOLLOWER_HPP_
 #define FOLLOWER_HPP_
 
-#include <iostream>
-#include <vector>
+
+// C Header Files
+#include <arpa/inet.h>
+#include <netdb.h>  
+#include <netinet/in.h> 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <unistd.h>
+
+
+// C++ Header Files
+#include <string>
+
 
 class Follower {
+private:
+    std::string host;
+    uint16_t port;
+    int socketfd;
+
+    int make_client_sockaddr(struct sockaddr_in *addr, const char *hostname, uint16_t port) {
+        // Step (1): Specify Socket Family
+        addr->sin_family = AF_INET;
+
+        // Step (2): Specify Socket Address (hostname).
+        struct hostent *host = gethostbyname(hostname);
+        if (host == NULL) {
+            fprintf(stderr, "%s: unknown host\n", hostname);
+            return -1;
+        }
+        memcpy(&addr->sin_addr, host->h_addr, host->h_length);
+
+        // Step (3): Set the port value.
+        addr->sin_port = htons(port);
+
+        return 0;
+    }
+
 public:
+    Follower(std::string &hostname, uint16_t& port_in) : host(hostname), port(port_in) {
+        socketfd = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
+        struct sockaddr_in addr;
+        if (make_client_sockaddr(&addr, host.c_str(), port) == -1) {
+            return;
+        }
 
-    Follower();
-
-    void query_to_commit() {
-
+        // (3) Connect to remote server
+        if (connect(socketfd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
+            perror("Error connecting stream socket");
+            return;
+        }
     }
 
-    void commit() {
-
+    ~Follower() {
+        close(socketfd);
     }
 
-    void rollback() {
 
+    // Sending example, KEEP THIS COMMENTED
+    /*
+    void send_vote_req() {
+        std::string str = "VOTE-REQ";
+        // (4) Send message to remote server
+        // Call send() enough times to send all the data
+        ssize_t sent = 0;
+        do {
+            const ssize_t n = send(socketfd, str.c_str() + sent, str.size() - sent, 0);
+            if (n == -1) {
+                perror("Error sending on stream socket");
+                return;
+            }
+            sent += n;
+        } while (sent < (ssize_t)str.size());
     }
+    */
 
-    void end() {
 
-    }
-
-    void run() {
+    void vote_phase() {
         
     }
 
-    
+    void commit_phase();
+
+    void run() {
+        while(/*wait until get VOTE-REQ*/) {
+            vote_phase();
+
+        }
+
+        while(/*wait until get DECISION-COMMIT or DECISION-ABORT*/) {
+            commit_phase();
+        }
+    }
 };
 
 #endif
