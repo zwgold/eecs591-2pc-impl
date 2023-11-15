@@ -16,12 +16,16 @@
 // C++ Header Files
 #include <string>
 
+#include "Logger.hpp"
 
 class Follower {
 private:
     std::string host;
     uint16_t port;
     int socketfd;
+    struct sockaddr_in addr;
+
+    Logger dtlog;
 
     int make_client_sockaddr(struct sockaddr_in *addr, const char *hostname, uint16_t port) {
         // Step (1): Specify Socket Family
@@ -42,22 +46,41 @@ private:
     }
 
 public:
-    Follower(std::string &hostname, uint16_t& port_in) : host(hostname), port(port_in) {
+    Follower(std::string &hostname, uint16_t& port_in, std::string logfile) : host(hostname), port(port_in), dtlog(logfile) {
         socketfd = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
-        struct sockaddr_in addr;
         if (make_client_sockaddr(&addr, host.c_str(), port) == -1) {
-            return;
-        }
-
-        // (3) Connect to remote server
-        if (connect(socketfd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
-            perror("Error connecting stream socket");
-            return;
+            exit(1);
         }
     }
 
     ~Follower() {
         close(socketfd);
+    }
+
+    void test_get_vote() {
+        if (connect(socketfd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
+            perror("Error connecting stream socket");
+            exit(1);
+        } 
+
+        char msg[101];
+        memset(msg, 0, sizeof(msg));
+
+        // Call recv() enough times to consume all the data the client sends.
+        size_t recvd = 0;
+        ssize_t rval;
+        do {
+            // Receive as many additional bytes as we can in one call to recv()
+            // (while not exceeding MAX_MESSAGE_SIZE bytes in total).
+            rval = recv(socketfd, msg + recvd, 100 - recvd, 0);
+            if (rval == -1) {
+                perror("Error reading stream message");
+                exit(1);
+            }
+            recvd += rval;
+        } while (rval > 0); // recv() returns 0 when client closes
+
+        std::string message(msg);
     }
 
 
@@ -80,21 +103,25 @@ public:
     */
 
 
-    void vote_phase() {
+    void vote() {
         
     }
 
-    void commit_phase();
+    void commit_phase() {
+
+    }
 
     void run() {
-        while(/*wait until get VOTE-REQ*/) {
-            vote_phase();
+        /*
+        while(wait until get VOTE-REQ) {
+            vote();
 
         }
 
-        while(/*wait until get DECISION-COMMIT or DECISION-ABORT*/) {
+        while(wait until get DECISION-COMMIT or DECISION-ABORT) {
             commit_phase();
         }
+        */
     }
 };
 

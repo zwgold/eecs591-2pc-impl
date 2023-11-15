@@ -14,14 +14,14 @@ private:
     ofstream writestream;
 
 public:
-    Logger(string logfile_in) logfile(logfile_in) {
+    Logger(string logfile) : logfile(logfile) {
         readstream = ifstream(logfile);
         writestream = ofstream(logfile);
 
-        readstream.open();
-        writestream.open();
+        readstream.open(logfile);
+        writestream.open(logfile, ios_base::app);
 
-        if(!(readstream.is_open() and writestream.is_open())) {
+        if(!(readstream.is_open() && writestream.is_open())) {
             throw "Failed to open logfile";
         }
     }
@@ -36,7 +36,7 @@ public:
 
 
 
-    void write(string to_write) {
+    void log(string to_write) {
         writestream << to_write << "\n";
     }
 
@@ -48,6 +48,7 @@ public:
         while (getline(readstream, line)) {
             if(line == query) {
                 found = true;
+                break;
             }
         }
 
