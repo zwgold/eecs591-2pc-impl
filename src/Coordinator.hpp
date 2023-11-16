@@ -14,6 +14,7 @@
 // C++ Header Files
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <iostream>
 #include <numeric>
 #include <semaphore>
@@ -40,15 +41,14 @@ private:
     std::vector<int> acks;
     std::vector<int> votes;
 
-    int handle_connection(int connectionfd) {
-        std::string voteReqMsg = "VOTE-REQ";
-        //[[maybe_unused]] ssize_t rval = send(connectionfd, voteReqMsg.c_str(), sizeof(voteReqMsg.c_str()), MSG_WAITALL);
+    std::vector<std::thread> connectionThreads;
 
-        size_t message_len = strlen(voteReqMsg.c_str());
+    int handle_connection(int connectionfd, std::string messageSend) {
+        // Send the VOTE-REQ
+        size_t message_len = strlen(messageSend.c_str());
         size_t sent = 0;
         do {
-            std::cout << voteReqMsg.c_str() + sent << std::endl;
-            ssize_t n = send(connectionfd, voteReqMsg.c_str() + sent, message_len - sent, 0);
+            ssize_t n = send(connectionfd, messageSend.c_str() + sent, message_len - sent, 0);
             if (n == -1) {
                 perror("Error sending on stream socket");
                 return -1;
@@ -57,8 +57,28 @@ private:
         } while (sent < message_len);
 
 
+        // Now, wait for the vote
+        char msg[101];
+        memset(msg, 0, sizeof(msg));
+        // Call recv() enough times to consume all the data the client sends.
+        size_t recvd = 0;
+        ssize_t rval;
+        do {
+            // Receive as many additional bytes as we can in one call to recv()
+            // (while not exceeding MAX_MESSAGE_SIZE bytes in total).
+            rval = recv(connectionfd, msg + recvd, 100 - recvd, MSG_WAITALL);
+            if (rval == -1) {
+                perror("Error reading stream message");
+                exit(1);
+            }
+            recvd += rval;
+        } while (rval > 0); // recv() returns 0 when client closes
+
+        std::string voteType(msg);
+        std::cout << voteType << std::endl;
+
         // (4) Close connection
-        close(connectionfd);
+        //close(connectionfd);
         return 0;
     }
 
@@ -86,44 +106,52 @@ public:
         }
         
         listen(socketfd, 10);
-  }
+    }
 
     ~Coordinator() {
         close(socketfd);
     }
 
-  void send_vote_req() {
-    std::string voteReqMsg = "VOTE-REQ";
+    void send_and_get_vote() {
+        std::string voteReqMsg = "VOTE-REQ";
 
-    while (1) {
-        int connectionfd = accept(socketfd, 0, 0);
-        if (connectionfd == -1) {
-            perror("Error accepting connection");
-            exit(1);
+        dtlog.log(voteReqMsg);
+        std::vector<int> connectionFds;
+        while (connectionThreads.size() != 1) {
+            int connectionfd = accept(socketfd, 0, 0);
+            if (connectionfd == -1) {
+                perror("Error accepting connection");
+                exit(1);
+            }
+
+            connectionFds.push_back(connectionfd);
+
+            if (handle_connection(connectionfd, "VOTE_REQ") == -1) {
+                exit(1);
+            }
+
+            //std::thread connect (&Coordinator::handle_connection, this, connectionfd);
+            //connectionThreads.push_back(std::move(connect));
         }
 
-        if (handle_connection(connectionfd) == -1) {
-            exit(1);
-        }
-  }
+        /*for (size_t i = 0; i < connectionThreads.size(); i++) {
+            connectionThreads[i].join();
+        }*/
+        // TODO: write then log
 
+        // (2) Create a sockaddr_in to specify remote host and port
 
-    // TODO: write then log
-    dtlog.log(voteReqMsg);
-
-    // (2) Create a sockaddr_in to specify remote host and port
-
-    // (4) Send message to remote server
-    // Call send() enough times to send all the data
-    /*ssize_t sent = 0;
-    do {
-        const ssize_t n = send(master_socketfd, str.c_str() + sent, str.size() -
-    sent, 0); if (n == -1) { perror("Error sending on stream socket"); return;
-        }
-        sent += n;
-    } while (sent < (ssize_t)str.size());
-    */
-  }
+        // (4) Send message to remote server
+        // Call send() enough times to send all the data
+        /*ssize_t sent = 0;
+        do {
+            const ssize_t n = send(master_socketfd, str.c_str() + sent, str.size() -
+        sent, 0); if (n == -1) { perror("Error sending on stream socket"); return;
+            }
+            sent += n;
+        } while (sent < (ssize_t)str.size());
+        */
+    }
 
   void commit() {
     std::string commitMsg = "COMMIT";

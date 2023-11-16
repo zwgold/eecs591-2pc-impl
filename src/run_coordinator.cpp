@@ -7,7 +7,7 @@
 int main(void) {
     Coordinator c("coordinator_log.txt");
 
-    c.send_vote_req();
+    c.send_and_get_vote();
 
     return 0;
 }

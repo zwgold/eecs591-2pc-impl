@@ -14,16 +14,20 @@
 
 
 // C++ Header Files
+#include <chrono>
 #include <string>
 
 #include "Logger.hpp"
 
 class Follower {
 private:
+    // Socket variables
     std::string host;
     uint16_t port;
     int socketfd;
     struct sockaddr_in addr;
+
+    std::string vote;
 
     Logger dtlog;
 
@@ -57,72 +61,58 @@ public:
         close(socketfd);
     }
 
-    void test_get_vote() {
+    // Establishes connection to coordinator
+    void connectToCoordinator() {
         if (connect(socketfd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
             perror("Error connecting stream socket");
             exit(1);
-        } 
+        }
+    }
 
+    // Wait for the vote request and send it
+    void init_vote() {
+        // Part 1: Wait for the VOTE-REQ
         char msg[101];
         memset(msg, 0, sizeof(msg));
-
-        // Call recv() enough times to consume all the data the client sends.
         size_t recvd = 0;
         ssize_t rval;
         do {
-            // Receive as many additional bytes as we can in one call to recv()
-            // (while not exceeding MAX_MESSAGE_SIZE bytes in total).
             rval = recv(socketfd, msg + recvd, 100 - recvd, 0);
             if (rval == -1) {
                 perror("Error reading stream message");
                 exit(1);
             }
             recvd += rval;
-        } while (rval > 0); // recv() returns 0 when client closes
+        } while (rval > 0 && recvd != 8);
 
+        // Print out that we got the messages
         std::string message(msg);
-    }
+        std::cout << msg << std::endl;
 
-
-    // Sending example, KEEP THIS COMMENTED
-    /*
-    void send_vote_req() {
-        std::string str = "VOTE-REQ";
-        // (4) Send message to remote server
-        // Call send() enough times to send all the data
-        ssize_t sent = 0;
+        // Part 2: Send the vote, seed it randomly for each follower
+        uint t = (uint)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+        srand(t);
+        vote = (rand() % 3) ? "COMMIT" : "ABORT"; // 2/3 chance of being a COMMIT
+        size_t message_len = strlen(vote.c_str());
+        size_t sent = 0;
         do {
-            const ssize_t n = send(socketfd, str.c_str() + sent, str.size() - sent, 0);
+            ssize_t n = send(socketfd, vote.c_str() + sent, message_len - sent, 0);
             if (n == -1) {
                 perror("Error sending on stream socket");
-                return;
+                exit(1);
             }
             sent += n;
-        } while (sent < (ssize_t)str.size());
+        } while (sent < message_len);
     }
-    */
 
-
-    void vote() {
-        
+    const std::string getVote() const {
+        return vote;
     }
 
     void commit_phase() {
 
     }
-
-    void run() {
-        /*
-        while(wait until get VOTE-REQ) {
-            vote();
-
-        }
-
-        while(wait until get DECISION-COMMIT or DECISION-ABORT) {
-            commit_phase();
-        }
-        */
-    }
+    
 };
 
 #endif
