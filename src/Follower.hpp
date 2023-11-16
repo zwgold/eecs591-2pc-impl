@@ -50,7 +50,7 @@ private:
     }
 
 public:
-    Follower(std::string &hostname, uint16_t& port_in, std::string logfile) : host(hostname), port(port_in), dtlog(logfile) {
+    Follower(std::string &hostname, uint16_t &port_in, std::string &logfile) : host(hostname), port(port_in), dtlog(logfile) {
         socketfd = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
         if (make_client_sockaddr(&addr, host.c_str(), port) == -1) {
             exit(1);
@@ -61,7 +61,7 @@ public:
         close(socketfd);
     }
 
-    // Establishes connection to coordinator
+    // Establish connection to coordinator
     void connectToCoordinator() {
         if (connect(socketfd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
             perror("Error connecting stream socket");
@@ -69,13 +69,16 @@ public:
         }
     }
 
-    // Wait for the vote request and send it
-    void init_vote() {
-        // Part 1: Wait for the VOTE-REQ
+    // Wait for the vote request and send vote
+    void run() {
+        // Part 1: Wait for the VOTE-REQ from the Coordinator
         char msg[101];
         memset(msg, 0, sizeof(msg));
         size_t recvd = 0;
         ssize_t rval;
+
+        auto timeNow = std::chrono::high_resolution_clock::now();
+        long int diff;
         do {
             rval = recv(socketfd, msg + recvd, 100 - recvd, 0);
             if (rval == -1) {
@@ -83,16 +86,26 @@ public:
                 exit(1);
             }
             recvd += rval;
-        } while (rval > 0 && recvd != 8);
+            diff = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - timeNow).count(); 
+        } while (rval > 0 && recvd != 8 && diff < 5000); // timeout of 5000ms = 5 sec
 
-        // Print out that we got the messages
+        // Timeout Action: We have not received anything from the coordinator and we triggered a timeout
+        // TODO: Double check steps and add logic
+        if (diff >= 5000 && recvd < 8) {
+            // ABORT HERE
+            // JEREMY DO THIS PLZ AND THANKS
+            vote = "ABORT"; // don't send this, we just use it for bookkeeping
+            dtlog.log(vote);
+            // return
+        }
+        // Print out that we got the message
         std::string message(msg);
         std::cout << msg << std::endl;
 
         // Part 2: Send the vote, seed it randomly for each follower
         uint t = (uint)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
         srand(t);
-        vote = (rand() % 3) ? "COMMIT" : "ABORT"; // 2/3 chance of being a COMMIT
+        vote = (rand() % 5) ? "COMMIT" : "ABORT"; // 2/3 chance of being a COMMIT
         size_t message_len = strlen(vote.c_str());
         size_t sent = 0;
         do {
@@ -103,14 +116,46 @@ public:
             }
             sent += n;
         } while (sent < message_len);
+
+
+        // TODO: END HERE AND LOG
+        if (vote == "ABORT") {
+
+        }
     }
 
     const std::string getVote() const {
         return vote;
     }
 
-    void commit_phase() {
+    // After vote sent, if we did a commit, we will still listen and want to get the final verdict.
+    // Have to account for termination protocol if a timeout occurs.
+    void get_action() {
+        char msg[101];
+        memset(msg, 0, sizeof(msg));
+        size_t recvd = 0;
+        ssize_t rval;
 
+        auto timeNow = std::chrono::high_resolution_clock::now();
+        long int diff;
+        do {
+            rval = recv(socketfd, msg + recvd, 100 - recvd, 0);
+            if (rval == -1) {
+                perror("Error reading stream message");
+                exit(1);
+            }
+            recvd += rval;
+            diff = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - timeNow).count(); 
+        } while (rval > 0 && recvd != 8 && diff < 5000); // timeout of 5000ms = 5 sec
+
+        // TERMINATION PROTOCOL
+        if (diff >= 5000) {
+
+        }
+        else {
+            std::string action(msg);
+            dtlog.log(action);
+        }
     }
     
 };
