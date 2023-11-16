@@ -77,8 +77,6 @@ private:
         std::string voteType(msg);
         std::cout << voteType << std::endl;
 
-        // (4) Close connection
-        //close(connectionfd);
         return 0;
     }
 
@@ -108,6 +106,9 @@ public:
         listen(socketfd, 10);
     }
 
+    Coordinator& operator=(Coordinator&) = delete;
+    Coordinator(Coordinator&) = delete;
+
     ~Coordinator() {
         close(socketfd);
     }
@@ -117,7 +118,7 @@ public:
 
         dtlog.log(voteReqMsg);
         std::vector<int> connectionFds;
-        while (connectionThreads.size() != 1) {
+        while (connectionFds.size() != 1) {
             int connectionfd = accept(socketfd, 0, 0);
             if (connectionfd == -1) {
                 perror("Error accepting connection");
@@ -132,6 +133,10 @@ public:
 
             //std::thread connect (&Coordinator::handle_connection, this, connectionfd);
             //connectionThreads.push_back(std::move(connect));
+        }
+
+        for (auto connect : connectionFds) {
+            close(connect);
         }
 
         /*for (size_t i = 0; i < connectionThreads.size(); i++) {

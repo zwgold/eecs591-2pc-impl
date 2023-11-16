@@ -3,23 +3,21 @@
 
 #include <iostream>
 #include <fstream>
-#include<string>
-
-using namespace std;
+#include <string>
 
 class Logger {
 private:
-    string logfile;
-    ifstream readstream;
-    ofstream writestream;
+    std::string logfile;
+    std::ifstream readstream;
+    std::ofstream writestream;
 
 public:
-    Logger(string logfile) : logfile(logfile) {
-        readstream = ifstream(logfile);
-        writestream = ofstream(logfile);
+    Logger(std::string logfile) : logfile(logfile) {
+        readstream = std::ifstream(logfile);
+        writestream = std::ofstream(logfile);
 
         readstream.open(logfile);
-        writestream.open(logfile, ios_base::app);
+        writestream.open(logfile, std::ios_base::app);
 
         if(!(readstream.is_open() && writestream.is_open())) {
             throw "Failed to open logfile";
@@ -34,26 +32,23 @@ public:
         writestream.close();
     }
 
-
-
-    void log(string to_write) {
+    void log(std::string to_write) {
         writestream << to_write << "\n";
     }
 
-
-    //REQUIRES: logfile is cleared after each transaction
-    bool log_contains(string query) {
+    // REQUIRES: logfile is cleared after each transaction
+    bool log_contains(std::string query) {
         bool found = false;
-        string line;
+        std::string line;
         while (getline(readstream, line)) {
-            if(line == query) {
+            if (line == query) {
                 found = true;
                 break;
             }
         }
 
         readstream.clear();
-        readstream.seekg (0, ios::beg);
+        readstream.seekg (0, std::ios::beg);
         return found;
     } 
 };
