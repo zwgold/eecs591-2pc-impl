@@ -6,8 +6,6 @@
 // Usage: ./Follower hostname portnum
 // hostname and port are for the server
 
-void run_follower();
-
 // IF TESTING IN MININET: USE 10.0.0.1 AND 8888 FOR HOSTNAME AND PORT, RESPECTIVELY
 int main(int argc, char **argv) {
     // TODO: Add stuff for taking in follower #
@@ -24,9 +22,4 @@ int main(int argc, char **argv) {
     c.run();
 
     return 0;
-}
-
-// USE THS TO SPAWN FOLLOWER THREADS
-void run_follower() {
-
 }

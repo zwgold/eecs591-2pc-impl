@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 
@@ -90,13 +91,10 @@ public:
         } while (rval > 0 && recvd != 8 && diff < 5000); // timeout of 5000ms = 5 sec
 
         // Timeout Action: We have not received anything from the coordinator and we triggered a timeout
-        // TODO: Double check steps and add logic
-        if (diff >= 5000 && recvd < 8) {
-            // ABORT HERE
-            // JEREMY DO THIS PLZ AND THANKS
-            vote = "ABORT"; // don't send this, we just use it for bookkeeping
+        if (diff >= 5000 && recvd != 8) {
+            vote = "ABORT";
             dtlog.log(vote);
-            // return
+            return;
         }
         // Print out that we got the message
         std::string message(msg);
@@ -105,7 +103,15 @@ public:
         // Part 2: Send the vote, seed it randomly for each follower
         uint t = (uint)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
         srand(t);
+
+        // Figure out the vote
         vote = (rand() % 5) ? "COMMIT" : "ABORT"; // 2/3 chance of being a COMMIT
+        dtlog.log(vote);
+
+        // LIST OF PARTICIPANTS
+        if (vote == "COMMIT") {
+
+        }
         size_t message_len = strlen(vote.c_str());
         size_t sent = 0;
         do {
@@ -116,12 +122,11 @@ public:
             }
             sent += n;
         } while (sent < message_len);
-
-
-        // TODO: END HERE AND LOG
         if (vote == "ABORT") {
-
+            return;
         }
+
+
     }
 
     const std::string getVote() const {

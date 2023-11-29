@@ -39,13 +39,15 @@ private:
 
   // Protocol
   static constexpr uint16_t NUM_PARTICIPANTS = 1;
-  std::vector<int> acks;
   std::vector<int> votes;
 
+  // Connections and Threads
   std::vector<int> connectionFds;
+  std::unordered_map<int, int> connectionToVote;
+
   std::vector<std::thread> connectionThreads;
 
-  int handle_connection(int connectionfd, std::string messageSend) {
+  void handle_connection(int connectionfd, std::string messageSend) {
     // Send the VOTE-REQ
     size_t message_len = strlen(messageSend.c_str());
     size_t sent = 0;
@@ -54,7 +56,9 @@ private:
           send(connectionfd, messageSend.c_str() + sent, message_len - sent, 0);
       if (n == -1) {
         perror("Error sending on stream socket");
-        return -1;
+        connectionFds.erase(std::remove(connectionFds.begin(), connectionFds.end(), connectionfd), connectionFds.end());
+        close(connectionfd);
+        return;
       }
       sent += n;
     } while (sent < message_len);
@@ -71,7 +75,9 @@ private:
       rval = recv(connectionfd, msg + recvd, 100 - recvd, MSG_WAITALL);
       if (rval == -1) {
         perror("Error reading stream message");
-        exit(1);
+        connectionFds.erase(std::remove(connectionFds.begin(), connectionFds.end(), connectionfd), connectionFds.end());
+        close(connectionfd);
+        return;
       }
       recvd += rval;
     } while (rval > 0); // recv() returns 0 when client closes
@@ -80,12 +86,10 @@ private:
     std::string voteType(msg);
     std::cout << voteType << std::endl;
     if (voteType == "COMMIT") {
-      votes.push_back(1);
+      connectionToVote[connectionfd] = 1;
     } else {
-      votes.push_back(0);
+      connectionToVote[connectionfd] = 0;
     }
-
-    return 0;
   }
 
 public:
@@ -117,15 +121,14 @@ public:
 
   Coordinator &operator=(Coordinator &) = delete;
   Coordinator(Coordinator &) = delete;
-
   ~Coordinator() { close(socketfd); }
 
-  void send_and_get_vote() {
-    std::string voteReqMsg = "VOTE-REQ";
+  void run() {
+    // Perform the first log
+    dtlog.log("START-2PC");
 
-    dtlog.log(voteReqMsg);
-
-    // TODO: Do we need multithreading
+    // Start accepting and making threads
+    std::vector<std::thread> threads;
     auto timeNow = std::chrono::high_resolution_clock::now();
     long int diff;
     do {
@@ -135,57 +138,84 @@ public:
         exit(1);
       }
 
+      // Spawn Thread, store connection info for later
       connectionFds.push_back(connectionfd);
+      std::thread connectThread(&Coordinator::handle_connection, this, connectionfd, "VOTE_REQ");
+      threads.push_back(std::move(connectThread));
 
-      if (handle_connection(connectionfd, "VOTE_REQ") == -1) {
-        exit(1);
-      }
-
-      // std::thread connect (&Coordinator::handle_connection, this,
-      // connectionfd); connectionThreads.push_back(std::move(connect));
-      diff = std::chrono::duration_cast<std::chrono::milliseconds>(
-                 std::chrono::high_resolution_clock::now() - timeNow)
-                 .count();
+      diff = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - timeNow).count();
     } while (connectionFds.size() != NUM_PARTICIPANTS && diff < 5000);
 
-    // Failed to get all the votes
+    // Finish off the initial connections, don't want threads to hang without calling join()
+    for (auto& t : threads) {
+      t.join();
+    }
+
+    // Failed to get all the votes and timeout occured
     if (connectionFds.size() != NUM_PARTICIPANTS && diff >= 5000) {
+      std::cout << "this should not happen" << std::endl;
+      abort();
+      return;
+      // SEND THIS ABORT TO EVERYONE WHEN WE FUCK UP
+    }
+
+    int count = 0;
+    for (auto [k, v] : connectionToVote) {
+      count += v;
+    }
+    // If we have enough Yes's, then we can commit!
+    if (count == NUM_PARTICIPANTS) {
+      commit();
+    }  
+    else {
       abort();
     }
-
-    for (auto connect : connectionFds) {
-      close(connect);
-    }
-
-    /*for (size_t i = 0; i < connectionThreads.size(); i++) {
-        connectionThreads[i].join();
-    }*/
-    // TODO: write then log
-
-    // (2) Create a sockaddr_in to specify remote host and port
-
-    // (4) Send message to remote server
-    // Call send() enough times to send all the data
-    /*ssize_t sent = 0;
-    do {
-        const ssize_t n = send(master_socketfd, str.c_str() + sent, str.size() -
-    sent, 0); if (n == -1) { perror("Error sending on stream socket"); return;
-        }
-        sent += n;
-    } while (sent < (ssize_t)str.size());
-    */
   }
 
   void commit() {
     std::string commitMsg = "COMMIT";
     // TODO: send message AFTER log
     dtlog.log(commitMsg);
+    // Send this to all
+    for (auto connectionfd : connectionFds) {
+      // We will commit regardless
+      size_t message_len = strlen(commitMsg.c_str());
+      size_t sent = 0;
+      do {
+        ssize_t n = send(connectionfd, commitMsg.c_str() + sent, message_len - sent, 0);
+        if (n == -1) {
+          perror("Error sending on stream socket");
+          break;
+        }
+        sent += n;
+      } while (sent < message_len);
+      close(connectionfd);
+      connectionToVote.erase(connectionfd);
+    }
+    connectionFds.clear();
   }
 
   void abort() {
     std::string abortMsg = "ABORT";
     // TODO: send message before log
     dtlog.log(abortMsg);
+    for (auto connectionfd : connectionFds) {
+      if (connectionToVote[connectionfd] == 1) {
+        size_t message_len = strlen(abortMsg.c_str());
+        size_t sent = 0;
+        do {
+          ssize_t n = send(connectionfd, abortMsg.c_str() + sent, message_len - sent, 0);
+          if (n == -1) {
+            perror("Error sending on stream socket");
+            break;
+          }
+          sent += n;
+        } while (sent < message_len);
+      }
+      close(connectionfd);
+      connectionToVote.erase(connectionfd);
+    }
+    connectionFds.clear();
   }
 };
 
