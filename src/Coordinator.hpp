@@ -16,9 +16,11 @@
 #include <array>
 #include <chrono>
 #include <iostream>
+#include <mutex>
 #include <numeric>
 #include <semaphore>
 #include <string>
+#include <sstream>
 #include <thread>
 #include <unordered_map>
 #include <vector>
@@ -28,7 +30,7 @@
 
 class Coordinator {
 private:
-  // Socket Stuff
+  // Socket Variables that are kept around
   std::string host;
   static constexpr uint16_t PORT = 8888;
   int socketfd;
@@ -39,16 +41,30 @@ private:
 
   // Protocol
   static constexpr uint16_t NUM_PARTICIPANTS = 1;
-  std::vector<int> votes;
 
-  // Connections and Threads
+  // Connection Info
   std::vector<int> connectionFds;
+  std::unordered_map<int, std::string> yesFollowers;
   std::unordered_map<int, int> connectionToVote;
 
+  // Threads
   std::vector<std::thread> connectionThreads;
+  std::mutex m;
 
   void handle_connection(int connectionfd, std::string messageSend) {
-    // Send the VOTE-REQ
+    // 1. Send the VOTE-REQ and a list of participants. This can be done via a delimitter
+    // and will need to be locked to prevent this from being modified. This should be the only
+    // section that needs to be locked.
+    m.lock();
+    if (yesFollowers.size() > 0) {
+      messageSend += " "; // add delimitter
+    }
+    for (auto &[conn, hostname] : yesFollowers) {
+      messageSend += hostname;
+      messageSend += " ";
+    }
+    m.unlock();
+
     size_t message_len = strlen(messageSend.c_str());
     size_t sent = 0;
     do {
@@ -63,7 +79,7 @@ private:
       sent += n;
     } while (sent < message_len);
 
-    // Now, wait for the vote
+    // 2. Wait for vote and name of participant
     char msg[101];
     memset(msg, 0, sizeof(msg));
     // Call recv() enough times to consume all the data the client sends.
@@ -82,9 +98,21 @@ private:
       recvd += rval;
     } while (rval > 0); // recv() returns 0 when client closes
 
-    // Get the vote, store as a 1 (commit) or 0 (abort)
-    std::string voteType(msg);
-    std::cout << voteType << std::endl;
+    // Store as a string
+    std::string voteAndName(msg);
+
+    // Split into the vote and name separately
+    std::string delimiter = " ";
+    size_t pos = voteAndName.find(delimiter);
+    std::string voteType = voteAndName.substr(0, pos);
+    voteAndName.erase(0, pos + delimiter.length());
+    pos = voteAndName.find(delimiter);
+    std::string connName = voteAndName.substr(0, pos);
+
+
+    // For when we send list of participants
+    yesFollowers[connectionfd] = connName;
+    // Store vote
     if (voteType == "COMMIT") {
       connectionToVote[connectionfd] = 1;
     } else {
@@ -135,13 +163,13 @@ public:
       int connectionfd = accept(socketfd, 0, 0);
       if (connectionfd == -1) {
         perror("Error accepting connection");
-        exit(1);
       }
-
-      // Spawn Thread, store connection info for later
-      connectionFds.push_back(connectionfd);
-      std::thread connectThread(&Coordinator::handle_connection, this, connectionfd, "VOTE_REQ");
-      threads.push_back(std::move(connectThread));
+      else {
+        // Spawn Thread, store connection info for later
+        connectionFds.push_back(connectionfd);
+        std::thread connectThread(&Coordinator::handle_connection, this, connectionfd, "VOTE_REQ");
+        threads.push_back(std::move(connectThread));
+      }
 
       diff = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - timeNow).count();
     } while (connectionFds.size() != NUM_PARTICIPANTS && diff < 5000);
@@ -160,7 +188,7 @@ public:
     }
 
     int count = 0;
-    for (auto [k, v] : connectionToVote) {
+    for (auto &[k, v] : connectionToVote) {
       count += v;
     }
     // If we have enough Yes's, then we can commit!
@@ -200,7 +228,7 @@ public:
     // TODO: send message before log
     dtlog.log(abortMsg);
     for (auto connectionfd : connectionFds) {
-      if (connectionToVote[connectionfd] == 1) {
+      if (connectionToVote[connectionfd] == 1) { // 1 is yes
         size_t message_len = strlen(abortMsg.c_str());
         size_t sent = 0;
         do {

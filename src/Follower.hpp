@@ -31,6 +31,7 @@ private:
     std::string vote;
 
     Logger dtlog;
+    std::string name;
 
     int make_client_sockaddr(struct sockaddr_in *addr, const char *hostname, uint16_t port) {
         // Step (1): Specify Socket Family
@@ -51,7 +52,7 @@ private:
     }
 
 public:
-    Follower(std::string &hostname, uint16_t &port_in, std::string &logfile) : host(hostname), port(port_in), dtlog(logfile) {
+    Follower(std::string &hostname, uint16_t &port_in, std::string &logfile, std::string& name_in) : host(hostname), port(port_in), dtlog(logfile), name(name_in) {
         socketfd = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
         if (make_client_sockaddr(&addr, host.c_str(), port) == -1) {
             exit(1);
@@ -91,16 +92,40 @@ public:
         } while (rval > 0 && recvd != 8 && diff < 5000); // timeout of 5000ms = 5 sec
 
         // Timeout Action: We have not received anything from the coordinator and we triggered a timeout
-        if (diff >= 5000 && recvd != 8) {
+        if (diff >= 5000 && recvd < 8) {
             vote = "ABORT";
             dtlog.log(vote);
             return;
         }
-        // Print out that we got the message
-        std::string message(msg);
-        std::cout << msg << std::endl;
 
-        // Part 2: Send the vote, seed it randomly for each follower
+        // If no timeout, continue and print out that we got the message
+
+        // Part 2: Get the list current participants
+        /*memset(msg, 0, sizeof(msg));
+        recvd = 0;
+        timeNow = std::chrono::high_resolution_clock::now();
+        do {
+            rval = recv(socketfd, msg + recvd, 100 - recvd, 0);
+            if (rval == -1) {
+                perror("Error reading stream message");
+                exit(1);
+            }
+            recvd += rval;
+            diff = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - timeNow).count(); 
+        } while (rval > 0 && diff < 5000); // timeout of 5000ms = 5 sec
+
+        // Timeout Action: We have not received anything from the coordinator on participants and we triggered a timeout
+        if (diff >= 5000) {
+            vote = "ABORT";
+            dtlog.log(vote);
+            return;
+        }
+
+        std::string participantsFromCoord(msg);
+        std::cout << participantsFromCoord << std::endl;
+*/
+
+        // Part 3: Send the vote, seed it randomly for each follower
         uint t = (uint)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
         srand(t);
 
@@ -112,16 +137,20 @@ public:
         if (vote == "COMMIT") {
 
         }
-        size_t message_len = strlen(vote.c_str());
+
+        // Send the vote with the name of the participant
+        std::string toSend = vote + " " + name;
+        size_t message_len = strlen(toSend.c_str());
         size_t sent = 0;
         do {
-            ssize_t n = send(socketfd, vote.c_str() + sent, message_len - sent, 0);
+            ssize_t n = send(socketfd, toSend.c_str() + sent, message_len - sent, 0);
             if (n == -1) {
                 perror("Error sending on stream socket");
                 exit(1);
             }
             sent += n;
         } while (sent < message_len);
+
         if (vote == "ABORT") {
             return;
         }
