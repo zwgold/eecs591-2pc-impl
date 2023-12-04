@@ -105,6 +105,7 @@ public:
         // so trigger a timeout
         if (diff >= 5000 && recvd < 8) {
             vote = "ABORT";
+            // This isn't our vote, this is our timeout
             dtlog.log(vote);
             return;
         }
@@ -120,8 +121,7 @@ public:
 
         // Figure out the vote
         vote = (rand() % 10) ? "COMMIT" : "ABORT"; // 9/10 chance of being a COMMIT
-        std::cout << vote << std::endl;
-        dtlog.log(vote);
+        dtlog.log("VOTE: " + vote);
 
         // Send the vote with the name of the participant
         std::string toSend = vote + " " + name;
