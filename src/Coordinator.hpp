@@ -40,7 +40,7 @@ private:
   Logger dtlog;
 
   // Protocol
-  static constexpr uint16_t NUM_PARTICIPANTS = 1;
+  uint16_t NUM_FOLLOWERS;
 
   // Connection Info
   std::vector<int> connectionFds;
@@ -122,7 +122,7 @@ private:
   }
 
 public:
-  Coordinator(std::string logfile) : dtlog(logfile) {
+  Coordinator(std::string logfile, uint16_t numFollowers) : dtlog(logfile), NUM_FOLLOWERS(numFollowers) {
     socketfd = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
     if (socketfd == -1) {
       perror("Error opening stream socket");
@@ -182,7 +182,7 @@ public:
       }
 
       diff = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - timeNow).count();
-    } while (connectionFds.size() != NUM_PARTICIPANTS && diff < 5000);
+    } while (connectionFds.size() != NUM_FOLLOWERS && diff < 5000);
 
     // Finish off the initial connections, don't want threads to hang without calling join()
     for (auto& t : threads) {
@@ -190,7 +190,7 @@ public:
     }
 
     // Failed to get all the votes and timeout occured
-    if (connectionFds.size() != NUM_PARTICIPANTS && diff >= 5000) {
+    if (connectionFds.size() != NUM_FOLLOWERS && diff >= 5000) {
       abort();
       return;
     }
@@ -202,7 +202,7 @@ public:
 
     
     // If we have enough Yes's, then we can commit!
-    if (count == NUM_PARTICIPANTS) {
+    if (count == NUM_FOLLOWERS) {
       commit();
     }  
     else {

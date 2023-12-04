@@ -1,16 +1,12 @@
 #include <iostream>
 #include <vector>
 
-#include <unistd.h>
-
 #include "Follower.hpp"
 
+// NOTE TO GROUP: IF TESTING IN MININET: USE 10.0.0.1 AND 8888 FOR HOSTNAME AND PORT, RESPECTIVELY
 // Usage: ./Follower hostname portnum followername
 // hostname and port are for the server 
-
-// IF TESTING IN MININET: USE 10.0.0.1 AND 8888 FOR HOSTNAME AND PORT, RESPECTIVELY
 int main(int argc, char **argv) {
-    // TODO: Add stuff for taking in follower #
     if (argc != 4) {
         std::cout << "Usage: ./Follower [hostname] [portnum] [followername]" << std::endl;
         return -1;

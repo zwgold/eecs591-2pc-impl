@@ -109,12 +109,10 @@ public:
             return;
         }
 
+        // Remove the VOTE_REQ part, we know that we are voting once we get it
         std::string participants(msg);
-        std::string delimiter = " ";
-        size_t pos = participants.find(delimiter);
-        participants.erase(0, pos + delimiter.length());
-        dtlog.log(participants);
-
+        participants.erase(0, 8);
+        dtlog.log("PARTICIPANTS: " + participants);
 
         // Part 3: Send the vote, seed it randomly for each follower
         uint t = (uint)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
@@ -122,6 +120,7 @@ public:
 
         // Figure out the vote
         vote = (rand() % 10) ? "COMMIT" : "ABORT"; // 9/10 chance of being a COMMIT
+        std::cout << vote << std::endl;
         dtlog.log(vote);
 
         // Send the vote with the name of the participant

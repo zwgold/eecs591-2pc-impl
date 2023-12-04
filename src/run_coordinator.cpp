@@ -3,12 +3,19 @@
 
 #include "Coordinator.hpp"
 
-// Usage: ./Coordinator
-int main(void) {
+// Usage: ./Coordinator num_followers
+int main(int argc, char** argv) {
     // Construct Coordinator Object,
-    Coordinator c("coordinator_log.txt");
+    if (argc != 2) {
+        std::cout << "Usage: ./Coordinator [num_followers]" << std::endl;
+        return -1;
+    }
 
-    // Run (will run until termination)
+    // Parse Input
+    uint16_t num_followers = (uint16_t)std::atoi(argv[1]);
+    Coordinator c("coordinator_log.txt", num_followers);
+
+    // Runs
     c.run();
 
     return 0;
