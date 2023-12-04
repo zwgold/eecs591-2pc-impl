@@ -121,8 +121,7 @@ public:
         srand(t);
 
         // Figure out the vote
-        vote = (rand() % 5) ? "COMMIT" : "ABORT"; // 2/3 chance of being a COMMIT
-        vote = "COMMIT";
+        vote = (rand() % 10) ? "COMMIT" : "ABORT"; // 9/10 chance of being a COMMIT
         dtlog.log(vote);
 
         // Send the vote with the name of the participant
