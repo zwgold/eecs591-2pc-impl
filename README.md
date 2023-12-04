@@ -30,10 +30,11 @@ This file defines the logging mechanisms used in 2PC. This includes simple file 
 ### Notes
 * To run, run `Coordinator.exe` FIRST, and then each Follower.
 * Timeouts are 5 seconds for all related parts.
-* Socket timeouts are 2 seconds to deal with conditions for multithreading.
+* Socket timeouts are 1 seconds to deal with conditions for multithreading.
+* Participant lists are calculated by those who have sent a vote already. This can mean we send vote request before we can properly include the recently obtained vote. This is ok, since this better reflects a multithreaded system.
 
 ## Potential Changes
 * Update termination protocol to rely on the logging of other followers. We omitted this since our system really did not need this part.
 * Have the port configurable rather than just 8888.
 * Look into changes for socket timeouts when handling multi-threaded code.
-* Explore potential fine-grained locking at the Coordinator level.
+* Explore potential fine-grained locking at the Coordinator level to improve participant list sent. (Perhaps we can just have a text file of all Follower names for reference to send out, but we felt this was not in the spirit of distributed design)

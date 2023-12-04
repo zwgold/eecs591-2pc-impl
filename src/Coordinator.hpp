@@ -133,7 +133,7 @@ public:
 
     // Set timeout value for socket
     struct timeval tv;
-    tv.tv_sec = 2;
+    tv.tv_sec = 1;
     tv.tv_usec = 0; //500000;
     setsockopt(socketfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
 
