@@ -28,6 +28,7 @@ This contains the main function to run a Follower. Once compiled (via `make` in 
 This file defines the logging mechanisms used in 2PC. This includes simple file writing and reading.
 
 ### Notes
+* To run, run `Coordinator.exe` FIRST, and then each Follower.
 * Timeouts are 5 seconds for all related parts.
 * Socket timeouts are 2 seconds to deal with conditions for multithreading.
 

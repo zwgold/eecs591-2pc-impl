@@ -113,7 +113,7 @@ public:
         // Remove the VOTE_REQ part, we know that we are voting once we get it
         std::string participants(msg);
         participants.erase(0, 8);
-        dtlog.log("PARTICIPANTS: " + participants);
+        dtlog.log("PARTICIPANTS:" + participants);
 
         // Part 3: Send the vote, seed it randomly for each follower
         uint t = (uint)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();

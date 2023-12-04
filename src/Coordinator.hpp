@@ -63,6 +63,7 @@ private:
       messageSend += hostname;
       messageSend += " ";
     }
+    std::cout << messageSend << std::endl;
     m.unlock();
 
     size_t message_len = strlen(messageSend.c_str());
@@ -171,10 +172,7 @@ public:
     
     do {
       int connectionfd = accept(socketfd, 0, 0);
-      if (connectionfd == -1) {
-        perror("Error accepting connection");
-      }
-      else {
+      if (connectionfd != -1) {
         // Spawn Thread, store connection info for later
         connectionFds.push_back(connectionfd);
         std::thread connectThread(&Coordinator::handle_connection, this, connectionfd, "VOTE_REQ");
