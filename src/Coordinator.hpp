@@ -44,7 +44,7 @@ private:
 
   // Connection Info
   std::vector<int> connectionFds;
-  std::unordered_map<int, std::string> yesFollowers;
+  std::unordered_map<int, std::string> connectionToHostname;
   std::unordered_map<int, int> connectionToVote;
 
   // Threads
@@ -56,10 +56,10 @@ private:
     // and will need to be locked to prevent this from being modified. This should be the only
     // section that needs to be locked.
     m.lock();
-    if (yesFollowers.size() > 0) {
+    if (connectionToHostname.size() > 0) {
       messageSend += " "; // add delimitter
     }
-    for (auto &[conn, hostname] : yesFollowers) {
+    for (auto &[conn, hostname] : connectionToHostname) {
       messageSend += hostname;
       messageSend += " ";
     }
@@ -68,8 +68,7 @@ private:
     size_t message_len = strlen(messageSend.c_str());
     size_t sent = 0;
     do {
-      ssize_t n =
-          send(connectionfd, messageSend.c_str() + sent, message_len - sent, 0);
+      ssize_t n = send(connectionfd, messageSend.c_str() + sent, message_len - sent, 0);
       if (n == -1) {
         perror("Error sending on stream socket");
         connectionFds.erase(std::remove(connectionFds.begin(), connectionFds.end(), connectionfd), connectionFds.end());
@@ -79,7 +78,10 @@ private:
       sent += n;
     } while (sent < message_len);
 
-    // 2. Wait for vote and name of participant
+
+    // 2. Wait for vote and name of participant. From there, if a vote is obtained, we can split it and 
+    // add it to our counts and host info for sending participants earlier. (Assume when we first start,
+    // participant list is empty)
     char msg[101];
     memset(msg, 0, sizeof(msg));
     // Call recv() enough times to consume all the data the client sends.
@@ -88,7 +90,8 @@ private:
     do {
       // Receive as many additional bytes as we can in one call to recv()
       // (while not exceeding MAX_MESSAGE_SIZE bytes in total).
-      rval = recv(connectionfd, msg + recvd, 100 - recvd, MSG_WAITALL);
+      rval = recv(connectionfd, msg + recvd, 100 - recvd, 0);
+
       if (rval == -1) {
         perror("Error reading stream message");
         connectionFds.erase(std::remove(connectionFds.begin(), connectionFds.end(), connectionfd), connectionFds.end());
@@ -98,10 +101,9 @@ private:
       recvd += rval;
     } while (rval > 0); // recv() returns 0 when client closes
 
-    // Store as a string
+    // Store as string, then
+    // split into the vote and name separately
     std::string voteAndName(msg);
-
-    // Split into the vote and name separately
     std::string delimiter = " ";
     size_t pos = voteAndName.find(delimiter);
     std::string voteType = voteAndName.substr(0, pos);
@@ -110,8 +112,10 @@ private:
     std::string connName = voteAndName.substr(0, pos);
 
 
+    std::cout <<"made it " << std::endl;
+
     // For when we send list of participants
-    yesFollowers[connectionfd] = connName;
+    connectionToHostname[connectionfd] = connName;
     // Store vote
     if (voteType == "COMMIT") {
       connectionToVote[connectionfd] = 1;
@@ -159,6 +163,7 @@ public:
     std::vector<std::thread> threads;
     auto timeNow = std::chrono::high_resolution_clock::now();
     long int diff;
+    
     do {
       int connectionfd = accept(socketfd, 0, 0);
       if (connectionfd == -1) {
@@ -191,6 +196,8 @@ public:
     for (auto &[k, v] : connectionToVote) {
       count += v;
     }
+
+    
     // If we have enough Yes's, then we can commit!
     if (count == NUM_PARTICIPANTS) {
       commit();

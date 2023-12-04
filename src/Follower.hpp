@@ -28,8 +28,11 @@ private:
     int socketfd;
     struct sockaddr_in addr;
 
+    // Voting and Coordinator
     std::string vote;
+    bool rewaitForCoord = false;
 
+    // Personal Info (Logging and name)
     Logger dtlog;
     std::string name;
 
@@ -52,7 +55,7 @@ private:
     }
 
 public:
-    Follower(std::string &hostname, uint16_t &port_in, std::string &logfile, std::string& name_in) : host(hostname), port(port_in), dtlog(logfile), name(name_in) {
+    Follower(std::string &hostname, uint16_t &port_in, std::string& name_in) : host(hostname), port(port_in), dtlog("follower_" + name_in + ".txt"), name(name_in) {
         socketfd = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
         if (make_client_sockaddr(&addr, host.c_str(), port) == -1) {
             exit(1);
@@ -73,6 +76,7 @@ public:
 
     // Wait for the vote request and send vote
     void run() {
+        rewaitForCoord = false;
         // Part 1: Wait for the VOTE-REQ from the Coordinator
         char msg[101];
         memset(msg, 0, sizeof(msg));
@@ -89,41 +93,22 @@ public:
             }
             recvd += rval;
             diff = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - timeNow).count(); 
-        } while (rval > 0 && recvd != 8 && diff < 5000); // timeout of 5000ms = 5 sec
+        } while (rval > 0 && recvd < 8 && diff < 5000); // timeout of 5000ms = 5 sec
 
-        // Timeout Action: We have not received anything from the coordinator and we triggered a timeout
+        // Timeout Action: We have not received anything fully from the coordinator
+        // so trigger a timeout
         if (diff >= 5000 && recvd < 8) {
             vote = "ABORT";
             dtlog.log(vote);
             return;
         }
 
-        // If no timeout, continue and print out that we got the message
+        std::string participants(msg);
+        std::string delimiter = " ";
+        size_t pos = participants.find(delimiter);
+        participants.erase(0, pos + delimiter.length());
+        dtlog.log(participants);
 
-        // Part 2: Get the list current participants
-        /*memset(msg, 0, sizeof(msg));
-        recvd = 0;
-        timeNow = std::chrono::high_resolution_clock::now();
-        do {
-            rval = recv(socketfd, msg + recvd, 100 - recvd, 0);
-            if (rval == -1) {
-                perror("Error reading stream message");
-                exit(1);
-            }
-            recvd += rval;
-            diff = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - timeNow).count(); 
-        } while (rval > 0 && diff < 5000); // timeout of 5000ms = 5 sec
-
-        // Timeout Action: We have not received anything from the coordinator on participants and we triggered a timeout
-        if (diff >= 5000) {
-            vote = "ABORT";
-            dtlog.log(vote);
-            return;
-        }
-
-        std::string participantsFromCoord(msg);
-        std::cout << participantsFromCoord << std::endl;
-*/
 
         // Part 3: Send the vote, seed it randomly for each follower
         uint t = (uint)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
@@ -131,12 +116,8 @@ public:
 
         // Figure out the vote
         vote = (rand() % 5) ? "COMMIT" : "ABORT"; // 2/3 chance of being a COMMIT
+        vote = "COMMIT";
         dtlog.log(vote);
-
-        // LIST OF PARTICIPANTS
-        if (vote == "COMMIT") {
-
-        }
 
         // Send the vote with the name of the participant
         std::string toSend = vote + " " + name;
@@ -146,25 +127,25 @@ public:
             ssize_t n = send(socketfd, toSend.c_str() + sent, message_len - sent, 0);
             if (n == -1) {
                 perror("Error sending on stream socket");
-                exit(1);
+                break;
             }
             sent += n;
         } while (sent < message_len);
-
-        if (vote == "ABORT") {
-            return;
-        }
-
-
     }
 
     const std::string getVote() const {
         return vote;
     }
 
+    // Termination Protocol
+    bool getCoordStatus() const {
+        return rewaitForCoord;
+    }
+
+
     // After vote sent, if we did a commit, we will still listen and want to get the final verdict.
     // Have to account for termination protocol if a timeout occurs.
-    void get_action() {
+    void getAction() {
         char msg[101];
         memset(msg, 0, sizeof(msg));
         size_t recvd = 0;
@@ -180,13 +161,14 @@ public:
             }
             recvd += rval;
             diff = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - timeNow).count(); 
-        } while (rval > 0 && recvd != 8 && diff < 5000); // timeout of 5000ms = 5 sec
+        } while (rval > 0 && recvd < 7 && diff < 5000); // timeout of 5000ms = 5 sec
 
         // TERMINATION PROTOCOL
-        if (diff >= 5000) {
-
+        if (diff >= 5000 && (recvd != 6 && recvd != 5)) {
+            rewaitForCoord = true;
         }
         else {
+            std::cout <<"DSAdads\n";
             std::string action(msg);
             dtlog.log(action);
         }

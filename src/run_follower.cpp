@@ -16,11 +16,24 @@ int main(int argc, char **argv) {
 
     std::string hostname = argv[1];
     uint16_t port = (uint16_t)std::atoi(argv[2]);
-    std::string filename = "follower.txt";
     std::string name = argv[3];
-    Follower c(hostname, port, filename, name);
+    Follower c(hostname, port, name);
     c.connectToCoordinator();
     c.run();
+    /*
+    if (c.getVote() == "COMMIT") {
+        c.getAction();
+    }*/
+
+
+    // If we failed, we have to retry
+    while (c.getCoordStatus()) {
+        c.connectToCoordinator();
+        c.run();
+        if (c.getVote() == "COMMIT") {
+            c.getAction();
+        }
+    }
 
     return 0;
 }
