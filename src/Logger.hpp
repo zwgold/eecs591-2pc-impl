@@ -16,9 +16,6 @@ public:
         readstream = std::ifstream(logfile);
         writestream = std::ofstream(logfile);
 
-        readstream.open(logfile);
-        writestream.open(logfile, std::ios_base::app);
-
         if(!(readstream.is_open() && writestream.is_open())) {
             throw "Failed to open logfile";
         }

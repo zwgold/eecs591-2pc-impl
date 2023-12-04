@@ -90,7 +90,7 @@ private:
     do {
       // Receive as many additional bytes as we can in one call to recv()
       // (while not exceeding MAX_MESSAGE_SIZE bytes in total).
-      rval = recv(connectionfd, msg + recvd, 100 - recvd, 0);
+      rval = recv(connectionfd, msg + recvd, 100 - recvd, MSG_WAITALL);
 
       if (rval == -1) {
         perror("Error reading stream message");
@@ -99,7 +99,7 @@ private:
         return;
       }
       recvd += rval;
-    } while (rval > 0); // recv() returns 0 when client closes
+    } while (rval > 0 && recvd < 5); // recv() returns 0 when client closes
 
     // Store as string, then
     // split into the vote and name separately
@@ -110,9 +110,6 @@ private:
     voteAndName.erase(0, pos + delimiter.length());
     pos = voteAndName.find(delimiter);
     std::string connName = voteAndName.substr(0, pos);
-
-
-    std::cout <<"made it " << std::endl;
 
     // For when we send list of participants
     connectionToHostname[connectionfd] = connName;
@@ -133,6 +130,14 @@ public:
     }
 
     int yesval = 1;
+
+    // Set timeout value for socket
+    struct timeval tv;
+    tv.tv_sec = 2;
+    tv.tv_usec = 0;
+    setsockopt(socketfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
+
+    // Set reusable address for socket
     if (setsockopt(socketfd, SOL_SOCKET, SO_REUSEADDR, &yesval,
                    sizeof(yesval)) == -1) {
       perror("Error setting socket options");
@@ -186,10 +191,8 @@ public:
 
     // Failed to get all the votes and timeout occured
     if (connectionFds.size() != NUM_PARTICIPANTS && diff >= 5000) {
-      std::cout << "this should not happen" << std::endl;
       abort();
       return;
-      // SEND THIS ABORT TO EVERYONE WHEN WE FUCK UP
     }
 
     int count = 0;
@@ -210,7 +213,7 @@ public:
   void commit() {
     std::string commitMsg = "COMMIT";
     // TODO: send message AFTER log
-    dtlog.log(commitMsg);
+    dtlog.log("DECISION: " + commitMsg);
     // Send this to all
     for (auto connectionfd : connectionFds) {
       // We will commit regardless
@@ -226,6 +229,7 @@ public:
       } while (sent < message_len);
       close(connectionfd);
       connectionToVote.erase(connectionfd);
+      connectionToHostname.erase(connectionfd);
     }
     connectionFds.clear();
   }
@@ -233,7 +237,7 @@ public:
   void abort() {
     std::string abortMsg = "ABORT";
     // TODO: send message before log
-    dtlog.log(abortMsg);
+    dtlog.log("DECISION: " + abortMsg);
     for (auto connectionfd : connectionFds) {
       if (connectionToVote[connectionfd] == 1) { // 1 is yes
         size_t message_len = strlen(abortMsg.c_str());
@@ -249,6 +253,7 @@ public:
       }
       close(connectionfd);
       connectionToVote.erase(connectionfd);
+      connectionToHostname.erase(connectionfd);
     }
     connectionFds.clear();
   }
