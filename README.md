@@ -1,5 +1,5 @@
 # 2-Phase Commit C++ Implementation
-This implementation of 2 Phase Commit (2PC) is a basic example to use for our EECS 591 Project focusing on eBPF optimizations based on the Electrode paper. (Originally designed for optimizing Multi-Paxos)
+This implementation of 2 Phase Commit (2PC) is a basic example to use for our EECS 591 Project focusing on eBPF optimizations based on the Electrode paper. (Originally designed for optimizing Multi-Paxos.) This README will also discuss the extensions done to Electrode to accompany this project.
 
 ## Structure
 ### `topology.py`
@@ -28,7 +28,16 @@ This contains the main function to run a Follower. Once compiled (via `make` in 
 This file defines the logging mechanisms used in 2PC. This includes simple file writing and reading.
 
 ### `Electrode-Extension`
-This is the repository for our fork of the original Electrode paper's repo. This is a git submodule to reduce the amount of code we would have to include in the ZIP file. Description of the code is detailed in the original paper.
+This is the repository for our fork of the original Electrode paper's repo. This is a git submodule to reduce the amount of code we would have to include in the ZIP file. Description of the code is detailed in the original paper. The important files to note are as follows:
+* `setup.sh` is a Bash script which dynamically checks for proper kernel versioning and runs the required setup for clients and replicas as stated in the Electrode README.
+* `gendata.py` is a custom Python script to automatically generate latency and throughput data for a set amount of replicas on CloudLab, modelling the methods of data collection stated in the paper.
+* `opt3replica.csv` is the raw data generated from the `gendata.py` script for 3 replicas. Analogously, `opt5replica.csv` is the raw data for 5 replicas.
+* `maxtput.csv` is a sample of attempts at maximizing throughput. The data shown caused the CloudLab servers to crash multiple times, hence our reasoning for not including maximizing throughput in our data.
+
+### `Miscellaneous`
+* `eBPF Final Report`: This contains the final report for the EECS 591 project
+* `Instructions for Running Electrode on CloudLab`: A personalized guide that our group wrote to demonstrate how to properly set up an Electrode experiment to be run on CloudLab.
+* `Email Correspondences`: Records of email communication with the lead code manager for Electrode, Yang Zhou (yangzhou@g.harvard.edu).
 
 ### Notes
 * To run, run `Coordinator.exe` FIRST, and then each Follower. (running a Follower without a Coordinator will cause it to fail)
