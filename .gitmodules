@@ -1,3 +1,4 @@
 [submodule "Electrode-Extension"]
 	path = Electrode-Extension
 	url = https://github.com/ABKor752/Electrode-Extension.git
+	branch = main
